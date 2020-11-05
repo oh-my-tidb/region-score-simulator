@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
@@ -78,24 +79,28 @@ func genChart(Cs []float64, K, M float64) []render.Renderer {
 	availableData := make([][]opts.LineData, len(Cs))
 	percentData := make([][]opts.LineData, len(Cs))
 	for i := 0; ; i++ {
-		var index int = -1
+		var minIndex []int
 		var minScore float64 = math.MaxFloat64
 		for j := range Cs {
 			A := Cs[j] - Rs[j]
 			if A <= 0 {
 				continue
 			}
-			if S := score(Rs[j], Cs[j], A, K, M); S < minScore {
-				index, minScore = j, S
+			S := score(Rs[j], Cs[j], A, K, M)
+			if S < minScore {
+				minIndex, minScore = []int{j}, S
+			}
+			if S == minScore {
+				minIndex = append(minIndex, j)
 			}
 		}
-		if index == -1 {
+		if len(minIndex) == 0 {
 			break
 		}
 
-		Rs[index] += 0.1 // add 0.1G per ineration
-		if i%100 == 0 {
-			xAxis = append(xAxis, ".")
+		Rs[minIndex[rand.Intn(len(minIndex))]] += 0.1
+		if i%50 == 0 {
+			xAxis = append(xAxis, "")
 			for j := range Rs {
 				sizeData[j] = append(sizeData[j], opts.LineData{Value: Rs[j]})
 				if a := Cs[j] - Rs[j]; a > 0 {

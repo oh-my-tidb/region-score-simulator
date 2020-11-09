@@ -88,7 +88,10 @@ func score(R, C, A, K, M float64) float64 {
 	if A >= C {
 		return R
 	}
-	return (K + M*(math.Log(C)-math.Log(A))/(C-A)) * R
+	if A > 20 {
+		return (K + M*(math.Log(C)-math.Log(A-19))/(C-A+19)) * R
+	}
+	return (K + M*math.Log(C)/(C)) * R
 }
 
 func genChart(Cs, Amps, Ds []float64, K, M float64) []render.Renderer {
@@ -97,6 +100,7 @@ func genChart(Cs, Amps, Ds []float64, K, M float64) []render.Renderer {
 	sizeData := make([][]opts.LineData, len(Cs))
 	availableData := make([][]opts.LineData, len(Cs))
 	percentData := make([][]opts.LineData, len(Cs))
+	scoreData := make([][]opts.LineData, len(Cs))
 	for i := 0; ; i++ {
 		var minIndex []int
 		var minScore float64 = math.MaxFloat64
@@ -122,10 +126,12 @@ func genChart(Cs, Amps, Ds []float64, K, M float64) []render.Renderer {
 			xAxis = append(xAxis, "")
 			for j := range Rs {
 				sizeData[j] = append(sizeData[j], opts.LineData{Value: Rs[j]})
-				if a := Cs[j] - Ds[j] - Rs[j]*Amps[j]; a > 0 {
-					availableData[j] = append(availableData[j], opts.LineData{Value: a})
+				A := Cs[j] - Ds[j] - Rs[j]*Amps[j]
+				if A > 0 {
+					availableData[j] = append(availableData[j], opts.LineData{Value: A})
 				}
 				percentData[j] = append(percentData[j], opts.LineData{Value: (Rs[j]*Amps[j] + Ds[j]) / Cs[j]})
+				scoreData[j] = append(scoreData[j], opts.LineData{Value: score(Rs[j], Cs[j], A, K, M)})
 			}
 		}
 	}
@@ -163,5 +169,16 @@ func genChart(Cs, Amps, Ds []float64, K, M float64) []render.Renderer {
 		percent.AddSeries(fmt.Sprintf("s%.0f", Cs[i]), percentData[i])
 	}
 
-	return []render.Renderer{size, available, percent}
+	score := charts.NewLine()
+	score.SetGlobalOptions(
+		charts.WithTitleOpts(opts.Title{
+			Title: "Score",
+		}),
+	)
+	score.SetXAxis(xAxis)
+	for i := range scoreData {
+		score.AddSeries(fmt.Sprintf("s%.0f", Cs[i]), scoreData[i])
+	}
+
+	return []render.Renderer{size, available, percent, score}
 }

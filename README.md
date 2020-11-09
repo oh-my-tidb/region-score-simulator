@@ -41,7 +41,7 @@ M in the formula. Example: `m=512`. Default value is `256`.
 To specify multiple parameters:
 
 ```
-http://127.0.0.1:8081?stores=200_300_500&k=2.1&m=512
+http://127.0.0.1:8081?stores=200_300_500&amps=1_1_3.5&deads=0_0_100&k=2.1&m=512
 ```
 
 

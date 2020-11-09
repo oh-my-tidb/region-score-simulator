@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"math"
 	"math/rand"
@@ -15,22 +16,30 @@ import (
 )
 
 var (
-	defaultStores         = []float64{500, 600, 800}
-	defaultK      float64 = 1
-	defaultM      float64 = 256
+	defaultStores             = []float64{500, 600, 800}
+	defaultSizeAmps           = []float64{1, 1, 1}
+	defaultDeadSpaces         = []float64{0, 0, 0}
+	defaultK          float64 = 1
+	defaultM          float64 = 256
 )
 
+var port = flag.String("p", ":8081", "serving addr")
+
 func main() {
+	flag.Parse()
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		stores := defaultStores
 		if storesStr := r.Form.Get("stores"); storesStr != "" {
-			ss := strings.Split(storesStr, "_")
-			stores = nil
-			for _, s := range ss {
-				v, _ := strconv.ParseInt(s, 10, 64)
-				stores = append(stores, float64(v))
-			}
+			stores = parseFloats(storesStr)
+		}
+		amps := defaultSizeAmps
+		if ampsStr := r.Form.Get("amps"); ampsStr != "" {
+			amps = parseFloats(ampsStr)
+		}
+		deadSpaces := defaultDeadSpaces
+		if deadSpaceStr := r.Form.Get("deads"); deadSpaceStr != "" {
+			deadSpaces = parseFloats(deadSpaceStr)
 		}
 		var k float64 = defaultK
 		if kStr := r.Form.Get("k"); kStr != "" {
@@ -40,10 +49,20 @@ func main() {
 		if mStr := r.Form.Get("m"); mStr != "" {
 			m, _ = strconv.ParseFloat(mStr, 16)
 		}
-		charts := genChart(stores, k, m)
+		charts := genChart(stores, amps, deadSpaces, k, m)
 		myRender(w, charts)
 	})
-	http.ListenAndServe(":8081", nil)
+	http.ListenAndServe(*port, nil)
+}
+
+func parseFloats(s string) []float64 {
+	var res []float64
+	ss := strings.Split(s, "_")
+	for _, s := range ss {
+		v, _ := strconv.ParseFloat(s, 64)
+		res = append(res, v)
+	}
+	return res
 }
 
 func myRender(w http.ResponseWriter, charts []render.Renderer) {
@@ -72,7 +91,7 @@ func score(R, C, A, K, M float64) float64 {
 	return (K + M*(math.Log(C)-math.Log(A))/(C-A)) * R
 }
 
-func genChart(Cs []float64, K, M float64) []render.Renderer {
+func genChart(Cs, Amps, Ds []float64, K, M float64) []render.Renderer {
 	Rs := make([]float64, len(Cs))
 	var xAxis []string
 	sizeData := make([][]opts.LineData, len(Cs))
@@ -82,7 +101,7 @@ func genChart(Cs []float64, K, M float64) []render.Renderer {
 		var minIndex []int
 		var minScore float64 = math.MaxFloat64
 		for j := range Cs {
-			A := Cs[j] - Rs[j]
+			A := Cs[j] - Ds[j] - Rs[j]*Amps[j]
 			if A <= 0 {
 				continue
 			}
@@ -103,10 +122,10 @@ func genChart(Cs []float64, K, M float64) []render.Renderer {
 			xAxis = append(xAxis, "")
 			for j := range Rs {
 				sizeData[j] = append(sizeData[j], opts.LineData{Value: Rs[j]})
-				if a := Cs[j] - Rs[j]; a > 0 {
+				if a := Cs[j] - Ds[j] - Rs[j]*Amps[j]; a > 0 {
 					availableData[j] = append(availableData[j], opts.LineData{Value: a})
 				}
-				percentData[j] = append(percentData[j], opts.LineData{Value: Rs[j] / Cs[j]})
+				percentData[j] = append(percentData[j], opts.LineData{Value: (Rs[j]*Amps[j] + Ds[j]) / Cs[j]})
 			}
 		}
 	}

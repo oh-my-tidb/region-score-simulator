@@ -21,6 +21,7 @@ var (
 	defaultDeadSpaces         = []float64{0, 0, 0}
 	defaultK          float64 = 1
 	defaultM          float64 = 256
+	defaultF          float64 = 20
 )
 
 var port = flag.String("p", ":8081", "serving addr")
@@ -49,7 +50,11 @@ func main() {
 		if mStr := r.Form.Get("m"); mStr != "" {
 			m, _ = strconv.ParseFloat(mStr, 16)
 		}
-		charts := genChart(stores, amps, deadSpaces, k, m)
+		var f float64 = defaultF
+		if fStr := r.Form.Get("f"); fStr != "" {
+			f, _ = strconv.ParseFloat(fStr, 16)
+		}
+		charts := genChart(stores, amps, deadSpaces, k, m, f)
 		myRender(w, charts)
 	})
 	http.ListenAndServe(*port, nil)
@@ -84,17 +89,17 @@ func myRender(w http.ResponseWriter, charts []render.Renderer) {
 	}
 }
 
-func score(R, C, A, K, M float64) float64 {
+func score(R, C, A, K, M, F float64) float64 {
 	if A >= C {
 		return R
 	}
-	if A > 20 {
-		return (K + M*(math.Log(C)-math.Log(A-19))/(C-A+19)) * R
+	if A > F {
+		return (K + M*(math.Log(C)-math.Log(A-F+1))/(C-A+F-1)) * R
 	}
-	return (K + M*math.Log(C)/(C)) * R
+	return (K+M*math.Log(C)/(C))*R + (F-A)*(K+M*math.Log(F)/F)
 }
 
-func genChart(Cs, Amps, Ds []float64, K, M float64) []render.Renderer {
+func genChart(Cs, Amps, Ds []float64, K, M, F float64) []render.Renderer {
 	Rs := make([]float64, len(Cs))
 	var xAxis []string
 	sizeData := make([][]opts.LineData, len(Cs))
@@ -109,7 +114,7 @@ func genChart(Cs, Amps, Ds []float64, K, M float64) []render.Renderer {
 			if A <= 0 {
 				continue
 			}
-			S := score(Rs[j], Cs[j], A, K, M)
+			S := score(Rs[j], Cs[j], A, K, M, F)
 			if S < minScore {
 				minIndex, minScore = []int{j}, S
 			}
@@ -131,7 +136,7 @@ func genChart(Cs, Amps, Ds []float64, K, M float64) []render.Renderer {
 					availableData[j] = append(availableData[j], opts.LineData{Value: A})
 				}
 				percentData[j] = append(percentData[j], opts.LineData{Value: (Rs[j]*Amps[j] + Ds[j]) / Cs[j]})
-				scoreData[j] = append(scoreData[j], opts.LineData{Value: score(Rs[j], Cs[j], A, K, M)})
+				scoreData[j] = append(scoreData[j], opts.LineData{Value: score(Rs[j], Cs[j], A, K, M, F)})
 			}
 		}
 	}

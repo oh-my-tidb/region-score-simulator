@@ -19,9 +19,9 @@ var (
 	defaultStores             = []float64{500, 600, 800}
 	defaultSizeAmps           = []float64{1, 1, 1}
 	defaultDeadSpaces         = []float64{0, 0, 0}
-	defaultK          float64 = 1
+	defaultK          float64 = 0.1
 	defaultM          float64 = 256
-	defaultF          float64 = 20
+	defaultF          float64 = 4
 )
 
 var port = flag.String("p", ":8081", "serving addr")
@@ -53,6 +53,12 @@ func main() {
 		var f float64 = defaultF
 		if fStr := r.Form.Get("f"); fStr != "" {
 			f, _ = strconv.ParseFloat(fStr, 16)
+		}
+		M := stores[0]
+		for _, s := range stores {
+			if s > M {
+				M = s
+			}
 		}
 		charts := genChart(stores, amps, deadSpaces, k, m, f)
 		myRender(w, charts)
@@ -90,13 +96,14 @@ func myRender(w http.ResponseWriter, charts []render.Renderer) {
 }
 
 func score(R, C, A, K, M, F float64) float64 {
-	if A >= C {
-		return R
-	}
-	if A > F {
-		return (K + M*(math.Log(C)-math.Log(A-F+1))/(C-A+F-1)) * R
-	}
-	return (K+M*math.Log(C)/(C))*R + (F-A)*(K+M*math.Log(F)/F)
+	return (C-A)/M + K/math.Tanh(A*F/M)
+	// if A >= C {
+	// 	return R
+	// }
+	// if A > F {
+	// 	return (K + M*(math.Log(C)-math.Log(A-F+1))/(C-A+F-1)) * R
+	// }
+	// return (K+M*math.Log(C)/(C))*R + (F-A)*(K+M*math.Log(F)/F)
 }
 
 func genChart(Cs, Amps, Ds []float64, K, M, F float64) []render.Renderer {

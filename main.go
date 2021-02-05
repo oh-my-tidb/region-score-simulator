@@ -16,12 +16,12 @@ import (
 )
 
 var (
-	defaultStores             = []float64{500, 600, 800}
-	defaultSizeAmps           = []float64{1, 1, 1}
-	defaultDeadSpaces         = []float64{0, 0, 0}
-	defaultK          float64 = 0.1
-	defaultM          float64 = 256
-	defaultF          float64 = 4
+	defaultStores            = []float64{500, 600, 800}
+	defaultAmp       float64 = 1.0
+	defaultDeadSpace float64 = 0
+	defaultK         float64 = 0.1
+	defaultM         float64 = 256
+	defaultF         float64 = 4
 )
 
 var port = flag.String("p", ":8081", "serving addr")
@@ -34,13 +34,19 @@ func main() {
 		if storesStr := r.Form.Get("stores"); storesStr != "" {
 			stores = parseFloats(storesStr)
 		}
-		amps := defaultSizeAmps
+		var amps []float64
 		if ampsStr := r.Form.Get("amps"); ampsStr != "" {
 			amps = parseFloats(ampsStr)
 		}
-		deadSpaces := defaultDeadSpaces
+		for len(amps) < len(stores) {
+			amps = append(amps, defaultAmp)
+		}
+		var deadSpaces []float64
 		if deadSpaceStr := r.Form.Get("deads"); deadSpaceStr != "" {
 			deadSpaces = parseFloats(deadSpaceStr)
+		}
+		for len(deadSpaces) < len(stores) {
+			deadSpaces = append(deadSpaces, defaultDeadSpace)
 		}
 		var k float64 = defaultK
 		if kStr := r.Form.Get("k"); kStr != "" {
@@ -54,10 +60,10 @@ func main() {
 		if fStr := r.Form.Get("f"); fStr != "" {
 			f, _ = strconv.ParseFloat(fStr, 16)
 		}
-		M := stores[0]
+		m = stores[0]
 		for _, s := range stores {
-			if s > M {
-				M = s
+			if s > m {
+				m = s
 			}
 		}
 		charts := genChart(stores, amps, deadSpaces, k, m, f)
@@ -96,7 +102,7 @@ func myRender(w http.ResponseWriter, charts []render.Renderer) {
 }
 
 func score(R, C, A, K, M, F float64) float64 {
-	return (C-A)/M + K/math.Tanh(A*F/M)
+	return 100 * ((C-A)/M + K/math.Tanh(A*F/M))
 	// if A >= C {
 	// 	return R
 	// }
@@ -141,9 +147,9 @@ func genChart(Cs, Amps, Ds []float64, K, M, F float64) []render.Renderer {
 				A := Cs[j] - Ds[j] - Rs[j]*Amps[j]
 				if A > 0 {
 					availableData[j] = append(availableData[j], opts.LineData{Value: A})
+					scoreData[j] = append(scoreData[j], opts.LineData{Value: score(Rs[j]*Amps[j], Cs[j], A, K, M, F)})
 				}
 				percentData[j] = append(percentData[j], opts.LineData{Value: (Rs[j]*Amps[j] + Ds[j]) / Cs[j]})
-				scoreData[j] = append(scoreData[j], opts.LineData{Value: score(Rs[j], Cs[j], A, K, M, F)})
 			}
 		}
 	}
